@@ -44,20 +44,32 @@ class handler(BaseHTTPRequestHandler):
         text = message.get("text", "")
         chat_id = message.get("chat", {}).get("id")
         
+        print(f"Received Telegram webhook request. Text: '{text}', Chat ID: '{chat_id}', Bot Token Configured: {bot_token is not None}")
+        
         if text.startswith("/check") and chat_id and bot_token:
+            print("Processing /check command...")
             # Generate the report
             try:
-                # We import here again just in case the path sys.path hack didn't apply globally
                 import sys
                 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 from gold_api import build_gold_report_message
                 
                 msg = build_gold_report_message()
             except Exception as e:
+                print(f"Error building gold report message: {e}")
                 msg = f"Đã xảy ra lỗi khi lấy giá vàng: {e}"
                 
             # Send message back
-            send_telegram_message(bot_token, chat_id, msg)
+            try:
+                send_telegram_message(bot_token, chat_id, msg)
+                print("Sent message to Telegram successfully.")
+            except Exception as e:
+                print(f"Error sending Telegram message: {e}")
+        else:
+            if not bot_token:
+                print("Warning: TELEGRAM_BOT_TOKEN environment variable is not set on Vercel!")
+            if not text.startswith("/check"):
+                print(f"Ignored message: text does not start with /check (got '{text}')")
             
         # Always return 200 OK so Telegram knows we received the webhook
         self.send_response(200)
