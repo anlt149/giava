@@ -8,30 +8,55 @@ def get_vietnam_gold_prices():
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
-    response = requests.get(BTMC_API_URL, headers=headers, timeout=10)
-    response.raise_for_status()
-    data = response.json()
     
-    results = {}
-    items = data.get("DataList", {}).get("Data", [])
-    for item in items:
-        row_id = item.get("@row", "")
-        if not row_id:
-            continue
-            
-        name = item.get(f"@n_{row_id}", "").upper()
-        buy = item.get(f"@pb_{row_id}", "0")
-        sell = item.get(f"@ps_{row_id}", "0")
+    # Try Vang.Today first as it works globally and is very fast
+    try:
+        response = requests.get("https://www.vang.today/api/prices", headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success") and "prices" in data:
+                prices = data["prices"]
+                # Look for SJC prices under various common keys
+                sjc_data = prices.get("SJL1L10") or prices.get("BTSJC") or prices.get("VNGSJC")
+                if sjc_data:
+                    return {
+                        'sjc': {
+                            'name': sjc_data.get('name', 'SJC 9999'),
+                            'buy': int(sjc_data.get('buy', 0)),
+                            'sell': int(sjc_data.get('sell', 0))
+                        }
+                    }
+    except Exception as e:
+        print(f"Failed to fetch from Vang.Today: {e}. Falling back to BTMC.")
+
+    # Fallback to BTMC API
+    try:
+        response = requests.get(BTMC_API_URL, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
         
-        if "SJC" in name:
-            results['sjc'] = {
-                'name': item.get(f"@n_{row_id}", ""),
-                'buy': int(buy) * 10,
-                'sell': int(sell) * 10
-            }
-            break
+        results = {}
+        items = data.get("DataList", {}).get("Data", [])
+        for item in items:
+            row_id = item.get("@row", "")
+            if not row_id:
+                continue
+                
+            name = item.get(f"@n_{row_id}", "").upper()
+            buy = item.get(f"@pb_{row_id}", "0")
+            sell = item.get(f"@ps_{row_id}", "0")
             
-    return results
+            if "SJC" in name:
+                results['sjc'] = {
+                    'name': item.get(f"@n_{row_id}", ""),
+                    'buy': int(buy) * 10,
+                    'sell': int(sell) * 10
+                }
+                return results
+    except Exception as e:
+        print(f"Failed to fetch from BTMC: {e}")
+        
+    return {}
 
 def get_us_gold_price():
     headers = {

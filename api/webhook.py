@@ -18,7 +18,9 @@ def send_telegram_message(bot_token, chat_id, message):
         "text": message,
         "parse_mode": "MarkdownV2"
     }
-    requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=10)
+    print(f"Telegram response: {resp.status_code} - {resp.text}")
+    resp.raise_for_status()
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
