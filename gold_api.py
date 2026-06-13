@@ -85,7 +85,7 @@ def build_gold_report_message(diff_buy=None, diff_sell=None):
     us_price = get_us_gold_price()
     
     if 'sjc' not in vn_prices:
-        return "Không thể lấy được giá vàng SJC lúc này."
+        return "⚠️ *Không thể lấy được giá vàng SJC lúc này\\. Vui lòng thử lại sau\\!*"
         
     sjc = vn_prices['sjc']
     now_str = datetime.datetime.now().strftime("%H:%M %d/%m/%Y")

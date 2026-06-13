@@ -59,7 +59,7 @@ class handler(BaseHTTPRequestHandler):
                 msg = build_gold_report_message()
             except Exception as e:
                 print(f"Error building gold report message: {e}")
-                msg = f"Đã xảy ra lỗi khi lấy giá vàng: {e}"
+                msg = "⚠️ *Đã xảy ra lỗi khi lấy giá vàng\\. Vui lòng thử lại sau\\!*"
                 
             # Send message back
             try:
