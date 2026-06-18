@@ -53,8 +53,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				"\\- `/remove_stock <TICKER>` : Xoá cổ phiếu khỏi danh sách theo dõi\\.\n\n" +
 				"💼 *Quản lý danh mục đầu tư \\(Portfolio\\):*\n" +
 				"\\- `/portfolio` hoặc `/assets` : Xem thống kê tài sản, DCA và Lời/Lỗ\\.\n" +
-				"\\- `/buy <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh mua \\(ví dụ: `/buy FPT 120000 100` hoặc `/buy gold 79000000 2`\\)\\.\n" +
-				"\\- `/sell <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh bán \\(ví dụ: `/sell FPT 125000 50` hoặc `/sell gold 80000000 1`\\)\\.\n" +
+				"\\- `/buy <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh mua \\(ví dụ: `/buy FPT 120000 100` hoặc `/buy gold 8200000 2`\\)\\.\n" +
+				"\\- `/sell <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh bán \\(ví dụ: `/sell FPT 125000 50` hoặc `/sell gold 8300000 1`\\)\\.\n" +
+				"\\- `/set_asset <TICKER/GOLD> <giá DCA> <số lượng>` : Đặt lại số lượng và giá trung bình \\(ví dụ: `/set_asset FPT 120000 100`\\)\\.\n" +
+				"\\- `/remove_asset <TICKER/GOLD>` : Xoá hoàn toàn tài sản khỏi danh mục\\.\n" +
 				"\\- `/clear_portfolio` : Xoá toàn bộ danh mục tài sản\\.\n"
 			sendTelegramMessage(botToken, chatID, msg)
 		} else if strings.HasPrefix(text, "/gold") {
@@ -156,8 +158,46 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			storage.SavePrefs(prefs)
 			msg = "✅ *Đã xoá toàn bộ danh mục tài sản của bạn\\!*"
 			sendTelegramMessage(botToken, chatID, msg)
+		} else if strings.HasPrefix(text, "/set_asset") {
+			parts := strings.Fields(text)
+			if len(parts) < 4 {
+				msg = "⚠️ *Cách sử dụng lệnh cập nhật:*\\n`/set_asset <TICKER/GOLD> <giá DCA> <số lượng>`\\n\\nVí dụ:\\n`/set_asset FPT 120000 100`"
+			} else {
+				asset := strings.ToUpper(parts[1])
+				priceStr := strings.ReplaceAll(strings.ReplaceAll(parts[2], ",", ""), ".", "")
+				price, err := strconv.ParseFloat(priceStr, 64)
+				qty, err2 := strconv.ParseFloat(parts[3], 64)
+				if err != nil || err2 != nil {
+					msg = "⚠️ *Lỗi: Giá và số lượng phải là số\\!*"
+				} else {
+					if asset != "GOLD" && price < 1000 {
+						price = price * 1000
+					}
+					success, errStr := setAssetData(asset, price, qty)
+					if success {
+						msg = fmt.Sprintf("✅ *Cập nhật tài sản thành công\\!*\\n🔠 Tài sản: `%s`\\n💰 Giá DCA: `%s` VND\\n📊 Số lượng: `%s`", utils.EscapeMarkdown(asset), utils.EscapeMarkdown(utils.FormatCurrency(price)), utils.EscapeMarkdown(fmt.Sprintf("%g", qty)))
+					} else {
+						msg = fmt.Sprintf("⚠️ *Lỗi:* %s", errStr)
+					}
+				}
+			}
+			sendTelegramMessage(botToken, chatID, msg)
+		} else if strings.HasPrefix(text, "/remove_asset") {
+			parts := strings.Fields(text)
+			if len(parts) < 2 {
+				msg = "⚠️ *Vui lòng nhập tài sản cần xoá\\! Ví dụ: `/remove_asset FPT`*"
+			} else {
+				asset := strings.ToUpper(parts[1])
+				success, errStr := removeAssetData(asset)
+				if success {
+					msg = fmt.Sprintf("✅ *Đã xoá `%s` khỏi danh mục tài sản của bạn\\!*", utils.EscapeMarkdown(asset))
+				} else {
+					msg = fmt.Sprintf("⚠️ *Lỗi:* %s", errStr)
+				}
+			}
+			sendTelegramMessage(botToken, chatID, msg)
 		} else {
-			allowedCmds := []string{"/gold", "/set_stock", "/remove_stock", "/stock", "/help", "/buy", "/sell", "/portfolio", "/assets", "/clear_portfolio"}
+			allowedCmds := []string{"/gold", "/set_stock", "/remove_stock", "/stock", "/help", "/buy", "/sell", "/portfolio", "/assets", "/clear_portfolio", "/set_asset", "/remove_asset"}
 			found := false
 			for _, cmd := range allowedCmds {
 				if strings.HasPrefix(text, cmd) {
@@ -497,4 +537,43 @@ func getPortfolioReport() string {
 
 	msg += fmt.Sprintf("\\- Lợi nhuận đã chốt: %s %s%s VND\n", realizedIndicator, utils.EscapeMarkdown(realizedSign), utils.EscapeMarkdown(utils.FormatCurrency(absRealized)))
 	return msg
+}
+
+func setAssetData(assetName string, price, quantity float64) (bool, string) {
+	if quantity < 0 {
+		return false, "Số lượng không được âm\\!"
+	}
+	if price < 0 {
+		return false, "Giá không được âm\\!"
+	}
+
+	prefs, _ := storage.LoadPrefs()
+	if prefs.Portfolio.Assets == nil {
+		prefs.Portfolio.Assets = make(map[string]models.Asset)
+	}
+	assetData, ok := prefs.Portfolio.Assets[assetName]
+	if !ok {
+		assetData = models.Asset{}
+	}
+
+	assetData.Quantity = quantity
+	assetData.DCAPrice = price
+
+	prefs.Portfolio.Assets[assetName] = assetData
+	storage.SavePrefs(prefs)
+	return true, ""
+}
+
+func removeAssetData(assetName string) (bool, string) {
+	prefs, _ := storage.LoadPrefs()
+	if prefs.Portfolio.Assets == nil {
+		return false, fmt.Sprintf("`%s` không có trong danh mục tài sản\\!", utils.EscapeMarkdown(assetName))
+	}
+	if _, ok := prefs.Portfolio.Assets[assetName]; !ok {
+		return false, fmt.Sprintf("`%s` không có trong danh mục tài sản\\!", utils.EscapeMarkdown(assetName))
+	}
+	
+	delete(prefs.Portfolio.Assets, assetName)
+	storage.SavePrefs(prefs)
+	return true, ""
 }
