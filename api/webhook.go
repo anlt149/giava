@@ -185,7 +185,13 @@ func sendTelegramMessage(botToken string, chatID int64, message string) {
 	data, _ := json.Marshal(payload)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
 	if err == nil {
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			fmt.Printf("Telegram API error: %d %s\n", resp.StatusCode, string(body))
+		}
 		resp.Body.Close()
+	} else {
+		fmt.Printf("Telegram POST error: %v\n", err)
 	}
 }
 
@@ -258,7 +264,7 @@ func buildStockReportMessage(stockData *finance.StockData) string {
 	msg := "📈 *BÁO CÁO CỔ PHIẾU VN*\n\n"
 	msg += fmt.Sprintf("🔠 *Mã cổ phiếu:* %s\n", utils.EscapeMarkdown(stockData.Ticker))
 	msg += fmt.Sprintf("💰 *Giá hiện tại:* %s VND\n", utils.EscapeMarkdown(priceStr))
-	msg += fmt.Sprintf("📊 *Biến động:* %s %s%s VND \\(%s%.2f%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(changeStr), utils.EscapeMarkdown(sign), stockData.ChangePercent)
+	msg += fmt.Sprintf("📊 *Biến động:* %s %s%s VND \\(%s%s%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(changeStr), utils.EscapeMarkdown(sign), utils.EscapeMarkdown(fmt.Sprintf("%.2f", stockData.ChangePercent)))
 	msg += fmt.Sprintf("Cập nhật lúc: %s", utils.EscapeMarkdown(nowStr))
 	return msg
 }
@@ -290,7 +296,7 @@ func buildWatchlistReport(tickers []string) string {
 
 			msg += fmt.Sprintf("⚫ *%s*\n", utils.EscapeMarkdown(ticker))
 			msg += fmt.Sprintf("💰 Giá: %s VND\n", utils.EscapeMarkdown(priceStr))
-			msg += fmt.Sprintf("📊 Biến động: %s %s%s VND \\(%s%.2f%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(changeStr), utils.EscapeMarkdown(sign), stockData.ChangePercent)
+			msg += fmt.Sprintf("📊 Biến động: %s %s%s VND \\(%s%s%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(changeStr), utils.EscapeMarkdown(sign), utils.EscapeMarkdown(fmt.Sprintf("%.2f", stockData.ChangePercent)))
 		} else {
 			msg += fmt.Sprintf("⚫ *%s*\n⚠️ Không thể lấy thông tin giá lúc này\\!\n\n", utils.EscapeMarkdown(ticker))
 		}
@@ -327,7 +333,7 @@ func addTransaction(assetName string, price, quantity float64, action string) (b
 		assetData.DCAPrice = newDCA
 	} else if action == "sell" {
 		if quantity > oldQty {
-			return false, fmt.Sprintf("Không đủ số lượng để bán\\! Bạn chỉ có `%s`.", utils.EscapeMarkdown(fmt.Sprintf("%g", oldQty)))
+			return false, fmt.Sprintf("Không đủ số lượng để bán\\! Bạn chỉ có `%s`\\.", utils.EscapeMarkdown(fmt.Sprintf("%g", oldQty)))
 		}
 		newQty := oldQty - quantity
 		realizedPnL += (price - oldDCA) * quantity
@@ -431,7 +437,7 @@ func getPortfolioReport() string {
 
 			msg += fmt.Sprintf("\\- Giá hiện tại: %s VND\n", utils.EscapeMarkdown(utils.FormatCurrency(currentPrice)))
 			msg += fmt.Sprintf("\\- Giá trị hiện tại: %s VND\n", utils.EscapeMarkdown(utils.FormatCurrency(currentVal)))
-			msg += fmt.Sprintf("\\- Lợi nhuận: %s %s%s VND \\(%s%.2f%%\\)\n", indicator, utils.EscapeMarkdown(pnlSign), utils.EscapeMarkdown(utils.FormatCurrency(unrealizedPnL)), utils.EscapeMarkdown(pnlSign), pnlPercent)
+			msg += fmt.Sprintf("\\- Lợi nhuận: %s %s%s VND \\(%s%s%%\\)\n", indicator, utils.EscapeMarkdown(pnlSign), utils.EscapeMarkdown(utils.FormatCurrency(unrealizedPnL)), utils.EscapeMarkdown(pnlSign), utils.EscapeMarkdown(fmt.Sprintf("%.2f", pnlPercent)))
 		} else {
 			totalValue += costBasis
 			msg += "⚠️ *Không thể lấy giá hiện tại\\!*\n"
@@ -460,7 +466,7 @@ func getPortfolioReport() string {
 		totalIndicator = "🔴"
 	}
 
-	msg += fmt.Sprintf("\\- Lợi nhuận chưa chốt: %s %s%s VND \\(%s%.2f%%\\)\n", totalIndicator, utils.EscapeMarkdown(totalPnLSign), utils.EscapeMarkdown(utils.FormatCurrency(totalUnrealizedPnL)), utils.EscapeMarkdown(totalPnLSign), totalPnLPercent)
+	msg += fmt.Sprintf("\\- Lợi nhuận chưa chốt: %s %s%s VND \\(%s%s%%\\)\n", totalIndicator, utils.EscapeMarkdown(totalPnLSign), utils.EscapeMarkdown(utils.FormatCurrency(totalUnrealizedPnL)), utils.EscapeMarkdown(totalPnLSign), utils.EscapeMarkdown(fmt.Sprintf("%.2f", totalPnLPercent)))
 
 	realizedSign := ""
 	if realizedPnLTotal > 0 {

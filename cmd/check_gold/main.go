@@ -177,7 +177,7 @@ func main() {
 
 				stockMsg += fmt.Sprintf("⚫ *%s*\n", utils.EscapeMarkdown(item.Ticker))
 				stockMsg += fmt.Sprintf("💰 Giá mới: %s VND\n", utils.EscapeMarkdown(priceStr))
-				stockMsg += fmt.Sprintf("📊 Biến động: %s %s%s VND \\(%s%.2f%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(diffStr), utils.EscapeMarkdown(sign), diffPercent)
+				stockMsg += fmt.Sprintf("📊 Biến động: %s %s%s VND \\(%s%s%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(diffStr), utils.EscapeMarkdown(sign), utils.EscapeMarkdown(fmt.Sprintf("%.2f", diffPercent)))
 			} else {
 				stockMsg += fmt.Sprintf("⚫ *%s*\n", utils.EscapeMarkdown(item.Ticker))
 				stockMsg += fmt.Sprintf("💰 Giá hiện tại: %s VND \\(Bắt đầu theo dõi\\)\n\n", utils.EscapeMarkdown(priceStr))
