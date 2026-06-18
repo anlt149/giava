@@ -57,8 +57,9 @@ class handler(BaseHTTPRequestHandler):
                     "ℹ️ *DANH SÁCH CÁC CÂU LỆNH HỖ TRỢ*\n\n"
                     "💵 *Thông tin giá thị trường:*\n"
                     "\\- `/gold` : Xem báo cáo giá vàng SJC và Thế Giới\\.\n"
-                    "\\- `/stock [TICKER]` : Xem giá cổ phiếu VN \\(ví dụ: `/stock FPT`\\)\\. Mặc định là cổ phiếu yêu thích\\.\n"
-                    "\\- `/set_stock <TICKER>` : Cài đặt cổ phiếu yêu thích\\.\n\n"
+                    "\\- `/stock [TICKER]` : Xem giá cổ phiếu VN \\(ví dụ: `/stock FPT`\\)\\. Mặc định là danh sách theo dõi\\.\n"
+                    "\\- `/set_stock <TICKER>` : Thêm cổ phiếu vào danh sách theo dõi\\.\n"
+                    "\\- `/remove_stock <TICKER>` : Xoá cổ phiếu khỏi danh sách theo dõi\\.\n\n"
                     "💼 *Quản lý danh mục đầu tư \\(Portfolio\\):*\n"
                     "\\- `/portfolio` hoặc `/assets` : Xem thống kê tài sản, DCA và Lời/Lỗ\\.\n"
                     "\\- `/buy <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh mua \\(ví dụ: `/buy FPT 120000 100` hoặc `/buy gold 79000000 2`\\)\\.\n"
@@ -92,18 +93,42 @@ class handler(BaseHTTPRequestHandler):
                 else:
                     ticker = parts[1].strip().upper()
                     try:
-                        from stock_api import get_stock_price, load_prefs, save_prefs
+                        from stock_api import get_stock_price, add_favorite_stock
                         stock_data = get_stock_price(ticker)
                         if not stock_data:
                             msg = f"⚠️ *Không tìm thấy mã cổ phiếu `{ticker}` hoặc lỗi kết nối\\!*"
                         else:
-                            prefs = load_prefs()
-                            prefs["favorite_stock"] = ticker
-                            save_prefs(prefs)
-                            msg = f"✅ *Đã lưu `{ticker}` làm cổ phiếu yêu thích của bạn\\!*"
+                            success, err_msg = add_favorite_stock(ticker)
+                            if success:
+                                msg = f"✅ *Đã thêm `{ticker}` vào danh sách theo dõi của bạn\\!*"
+                            else:
+                                msg = f"⚠️ *Lỗi:* {err_msg}"
                     except Exception as e:
                         print(f"Error setting stock: {e}")
                         msg = "⚠️ *Đã xảy ra lỗi khi lưu mã cổ phiếu\\!*"
+                
+                try:
+                    send_telegram_message(bot_token, chat_id, msg)
+                except Exception as e:
+                    print(f"Error sending Telegram message: {e}")
+
+            elif text.startswith("/remove_stock"):
+                print("Processing /remove_stock command...")
+                parts = text.split()
+                if len(parts) < 2:
+                    msg = "⚠️ *Vui lòng nhập mã cổ phiếu\\! Ví dụ: `/remove_stock FPT`*"
+                else:
+                    ticker = parts[1].strip().upper()
+                    try:
+                        from stock_api import remove_favorite_stock
+                        success, err_msg = remove_favorite_stock(ticker)
+                        if success:
+                            msg = f"✅ *Đã xoá `{ticker}` khỏi danh sách theo dõi của bạn\\!*"
+                        else:
+                            msg = f"⚠️ *Lỗi:* {err_msg}"
+                    except Exception as e:
+                        print(f"Error removing stock: {e}")
+                        msg = "⚠️ *Đã xảy ra lỗi khi xoá mã cổ phiếu\\!*"
                 
                 try:
                     send_telegram_message(bot_token, chat_id, msg)
@@ -118,13 +143,14 @@ class handler(BaseHTTPRequestHandler):
                     ticker = parts[1].strip().upper()
                 
                 try:
-                    from stock_api import get_stock_price, load_prefs, build_stock_report_message
+                    from stock_api import get_stock_price, load_prefs, build_stock_report_message, build_watchlist_report
                     if not ticker:
                         prefs = load_prefs()
-                        ticker = prefs.get("favorite_stock")
-                        
-                    if not ticker:
-                        msg = "⚠️ *Bạn chưa cài đặt cổ phiếu yêu thích\\. Sử dụng `/set_stock <TICKER>` hoặc `/stock <TICKER>`\\!*"
+                        tickers = prefs.get("favorite_stocks", [])
+                        if not tickers:
+                            msg = "⚠️ *Danh sách theo dõi trống\\! Sử dụng `/set_stock <TICKER>` hoặc `/stock <TICKER>`\\!*"
+                        else:
+                            msg = build_watchlist_report(tickers)
                     else:
                         stock_data = get_stock_price(ticker)
                         msg = build_stock_report_message(stock_data)
@@ -160,7 +186,7 @@ class handler(BaseHTTPRequestHandler):
                             price = price * 1000
                             
                         from stock_api import add_transaction
-                        success, err = err = add_transaction(asset, price, qty, action)
+                        success, err = add_transaction(asset, price, qty, action)
                         if success:
                             action_vi = "Ghi nhận mua" if action == "buy" else "Ghi nhận bán"
                             from stock_api import format_currency, escape_markdown
@@ -212,7 +238,7 @@ class handler(BaseHTTPRequestHandler):
             if not chat_id:
                 print("Warning: chat_id is missing from update!")
             
-            allowed_cmds = ["/gold", "/set_stock", "/stock", "/help", "/buy", "/sell", "/portfolio", "/assets", "/clear_portfolio"]
+            allowed_cmds = ["/gold", "/set_stock", "/remove_stock", "/stock", "/help", "/buy", "/sell", "/portfolio", "/assets", "/clear_portfolio"]
             if not any(text.startswith(cmd) for cmd in allowed_cmds):
                 print(f"Ignored message: '{text}' (unrecognized command)")
             

@@ -95,6 +95,15 @@ def build_stock_report_message(stock_data):
 PREFS_FILE = "user_prefs.json"
 PREFS_CACHE = {}
 
+def migrate_prefs(prefs):
+    if "favorite_stocks" not in prefs:
+        prefs["favorite_stocks"] = []
+    
+    old_fav = prefs.get("favorite_stock")
+    if old_fav:
+        if old_fav not in prefs["favorite_stocks"]:
+            prefs["favorite_stocks"].append(old_fav)
+            
 def load_prefs():
     global PREFS_CACHE
     if PREFS_CACHE:
@@ -125,6 +134,7 @@ def load_prefs():
                 if content_b64:
                     content_bytes = base64.b64decode(content_b64)
                     PREFS_CACHE = json.loads(content_bytes.decode("utf-8"))
+                    migrate_prefs(PREFS_CACHE)
                     print("Successfully loaded prefs from GitHub.")
                     return PREFS_CACHE
         except Exception as e:
@@ -135,6 +145,7 @@ def load_prefs():
         try:
             with open(PREFS_FILE, "r", encoding="utf-8") as f:
                 PREFS_CACHE = json.load(f)
+                migrate_prefs(PREFS_CACHE)
                 print("Successfully loaded prefs from local file.")
                 return PREFS_CACHE
         except Exception as e:
@@ -344,4 +355,56 @@ def get_portfolio_report():
     realized_indicator = "🟢" if realized_pnl_total > 0 else ("🔴" if realized_pnl_total < 0 else "⚪")
     msg += f"\\- Lợi nhuận đã chốt: {realized_indicator} {escape_markdown(realized_sign)}{escape_markdown(format_currency(abs(realized_pnl_total)))} VND\n"
     
+    return msg
+
+def add_favorite_stock(ticker: str):
+    ticker = ticker.strip().upper()
+    prefs = load_prefs()
+    favs = prefs.get("favorite_stocks", [])
+    if ticker not in favs:
+        favs.append(ticker)
+        prefs["favorite_stocks"] = favs
+        save_prefs(prefs)
+        return True, f"Đã thêm `{ticker}` vào danh sách theo dõi\\!"
+    return False, f"`{ticker}` đã có sẵn trong danh sách theo dõi\\!"
+
+def remove_favorite_stock(ticker: str):
+    ticker = ticker.strip().upper()
+    prefs = load_prefs()
+    favs = prefs.get("favorite_stocks", [])
+    if ticker in favs:
+        favs.remove(ticker)
+        prefs["favorite_stocks"] = favs
+        save_prefs(prefs)
+        return True, f"Đã xoá `{ticker}` khỏi danh sách theo dõi\\!"
+    return False, f"`{ticker}` không có trong danh sách theo dõi\\!"
+
+def build_watchlist_report(tickers):
+    if not tickers:
+        return "📈 *Danh sách theo dõi của bạn đang trống\\!*\nSử dụng `/set_stock <TICKER>` để thêm cổ phiếu\\!"
+        
+    now_str = datetime.datetime.now().strftime("%H:%M %d/%m/%Y")
+    
+    msg = "📈 *DANH SÁCH THEO DÕI CỔ PHIẾU*\n\n"
+    
+    for ticker in sorted(tickers):
+        stock_data = get_stock_price(ticker)
+        if stock_data:
+            price = stock_data["price"]
+            change = stock_data["change"]
+            change_percent = stock_data["change_percent"]
+            
+            sign = "+" if change > 0 else ""
+            indicator = "🟢" if change > 0 else ("🔴" if change < 0 else "⚪")
+            
+            price_str = format_currency(price)
+            change_str = format_currency(change)
+            
+            msg += f"⚫ *{escape_markdown(ticker)}*\n"
+            msg += f"💰 Giá: {escape_markdown(price_str)} VND\n"
+            msg += f"📊 Biến động: {indicator} {escape_markdown(sign)}{escape_markdown(price_str if change == 0 else change_str)} VND \\({escape_markdown(sign)}{escape_markdown(f'{change_percent:.2f}')}%\\)\n\n"
+        else:
+            msg += f"⚫ *{escape_markdown(ticker)}*\n⚠️ Không thể lấy thông tin giá lúc này\\!\n\n"
+            
+    msg += f"Cập nhật lúc: {escape_markdown(now_str)}"
     return msg

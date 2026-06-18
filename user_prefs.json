@@ -1,3 +1,5 @@
 {
-  "favorite_stock": "MWG"
+  "favorite_stocks": [
+    "MWG"
+  ]
 }

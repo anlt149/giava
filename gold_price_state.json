@@ -1,7 +1,11 @@
 {
-  "last_updated": "2026-06-18T14:29:24.294625Z",
+  "last_updated": "2026-06-18T15:07:46.451212Z",
   "sjc_buy": 148800000,
   "sjc_sell": 151300000,
   "stock_ticker": "FPT",
-  "stock_price": 71600.0
+  "stock_price": 71600.0,
+  "stock_prices": {
+    "FPT": 71600.0,
+    "HPG": 23650.0
+  }
 }

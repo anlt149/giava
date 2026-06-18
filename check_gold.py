@@ -66,35 +66,74 @@ def main():
         print(f"Error fetching gold prices: {e}")
 
     # --- 2. Stock Price Check ---
-    stock_changed = False
-    stock_msg = None
+    stock_changed_items = []
+    new_stock_prices = old_state.get("stock_prices", {}).copy()
+    
+    # Handle old state migration
+    if "stock_ticker" in old_state and "stock_price" in old_state:
+        t = old_state["stock_ticker"]
+        p = old_state["stock_price"]
+        if t and p and t not in new_stock_prices:
+            new_stock_prices[t] = p
+            
     try:
         prefs = load_prefs()
-        favorite_stock = prefs.get("favorite_stock")
-        if favorite_stock:
-            print(f"Checking favorite stock: {favorite_stock}...")
-            stock_data = get_stock_price(favorite_stock)
-            if stock_data:
-                current_stock_price = stock_data["price"]
-                
-                old_stock_ticker = old_state.get("stock_ticker")
-                old_stock_price = old_state.get("stock_price", 0.0)
-                
-                if favorite_stock != old_stock_ticker or current_stock_price != old_stock_price:
-                    print(f"Stock price changed! Old ({old_stock_ticker}): {old_stock_price} -> New ({favorite_stock}): {current_stock_price}")
-                    stock_msg = build_stock_report_message(stock_data)
-                    stock_changed = True
+        watchlist = prefs.get("favorite_stocks", [])
+        if watchlist:
+            print(f"Checking watchlist stocks: {watchlist}...")
+            for ticker in watchlist:
+                stock_data = get_stock_price(ticker)
+                if stock_data:
+                    current_price = stock_data["price"]
+                    old_price = new_stock_prices.get(ticker, 0.0)
                     
-                    new_state["stock_ticker"] = favorite_stock
-                    new_state["stock_price"] = current_stock_price
+                    if current_price != old_price:
+                        print(f"Stock {ticker} price changed! Old: {old_price} -> New: {current_price}")
+                        stock_changed_items.append({
+                            "ticker": ticker,
+                            "price": current_price,
+                            "old_price": old_price,
+                            "change": stock_data["change"],
+                            "change_percent": stock_data["change_percent"]
+                        })
+                        new_stock_prices[ticker] = current_price
+                    else:
+                        print(f"No change in stock price for {ticker}.")
                 else:
-                    print(f"No change in stock price for {favorite_stock}.")
-            else:
-                print(f"Failed to fetch stock data for {favorite_stock}.")
+                    print(f"Failed to fetch stock data for {ticker}.")
         else:
-            print("No favorite stock configured.")
+            print("No watchlist stocks configured.")
     except Exception as e:
         print(f"Error fetching stock prices: {e}")
+
+    # Build stock changes message
+    stock_msg = None
+    if stock_changed_items:
+        from stock_api import format_currency, escape_markdown
+        now_str = datetime.datetime.now().strftime("%H:%M %d/%m/%Y")
+        stock_msg = "🔔 *BÁO CÁO BIẾN ĐỘNG CỔ PHIẾU*\n\n"
+        for item in stock_changed_items:
+            ticker = item["ticker"]
+            price = item["price"]
+            old_p = item["old_price"]
+            
+            price_str = format_currency(price)
+            
+            if old_p > 0:
+                diff = price - old_p
+                sign = "+" if diff > 0 else ""
+                diff_percent = (diff / old_p * 100) if old_p else 0.0
+                indicator = "🟢" if diff > 0 else ("🔴" if diff < 0 else "⚪")
+                diff_str = format_currency(diff)
+                
+                stock_msg += f"⚫ *{escape_markdown(ticker)}*\n"
+                stock_msg += f"💰 Giá mới: {escape_markdown(price_str)} VND\n"
+                stock_msg += f"📊 Biến động: {indicator} {escape_markdown(sign)}{escape_markdown(price_str if diff == 0 else diff_str)} VND \\({escape_markdown(sign)}{escape_markdown(f'{diff_percent:.2f}')}%\\)\n\n"
+            else:
+                stock_msg += f"⚫ *{escape_markdown(ticker)}*\n"
+                stock_msg += f"💰 Giá hiện tại: {escape_markdown(price_str)} VND \\(Bắt đầu theo dõi\\)\n\n"
+                
+        stock_msg += f"Cập nhật lúc: {escape_markdown(now_str)}"
 
     # --- 3. Send Notifications & Save State ---
     if gold_changed and gold_msg:
@@ -111,19 +150,17 @@ def main():
             old_state["sjc_buy"] = new_state["sjc_buy"]
             old_state["sjc_sell"] = new_state["sjc_sell"]
             
-    if stock_changed and stock_msg:
+    if stock_changed_items and stock_msg:
         if bot_token and chat_id:
             try:
                 send_telegram_message(bot_token, chat_id, stock_msg)
                 print("Stock notification sent to Telegram.")
-                old_state["stock_ticker"] = new_state["stock_ticker"]
-                old_state["stock_price"] = new_state["stock_price"]
+                old_state["stock_prices"] = new_stock_prices
             except Exception as e:
                 print(f"Failed to send Stock Telegram message: {e}")
         else:
             # If no tokens, update local state anyway to simulate local run
-            old_state["stock_ticker"] = new_state["stock_ticker"]
-            old_state["stock_price"] = new_state["stock_price"]
+            old_state["stock_prices"] = new_stock_prices
 
     old_state["last_updated"] = new_state["last_updated"]
     
