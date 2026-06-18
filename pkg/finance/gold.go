@@ -60,7 +60,7 @@ func GetVietnamGoldPrices() (map[string]SJCGold, error) {
 
 				resp.Body.Close()
 				return map[string]SJCGold{
-					"sjc": {Name: name, Buy: buy, Sell: sell},
+					"sjc": {Name: name, Buy: buy / 10, Sell: sell / 10},
 				}, nil
 			}
 		}
@@ -105,7 +105,7 @@ func GetVietnamGoldPrices() (map[string]SJCGold, error) {
 			sell, _ := strconv.Atoi(sellStr)
 
 			return map[string]SJCGold{
-				"sjc": {Name: name, Buy: buy * 10, Sell: sell * 10},
+				"sjc": {Name: name, Buy: buy, Sell: sell},
 			}, nil
 		}
 	}

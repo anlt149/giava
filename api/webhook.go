@@ -187,7 +187,16 @@ func sendTelegramMessage(botToken string, chatID int64, message string) {
 	if err == nil {
 		if resp.StatusCode != 200 {
 			body, _ := io.ReadAll(resp.Body)
-			fmt.Printf("Telegram API error: %d %s\n", resp.StatusCode, string(body))
+			errMsg := string(body)
+			fmt.Printf("Telegram API error: %d %s\n", resp.StatusCode, errMsg)
+			
+			// Send fallback error message to the user
+			fallbackPayload := map[string]interface{}{
+				"chat_id": chatID,
+				"text":    "⚠️ *Lỗi hiển thị tin nhắn:* " + errMsg,
+			}
+			fallbackData, _ := json.Marshal(fallbackPayload)
+			http.Post(url, "application/json", bytes.NewBuffer(fallbackData))
 		}
 		resp.Body.Close()
 	} else {
@@ -407,7 +416,7 @@ func getPortfolioReport() string {
 
 		unit := "CP"
 		if assetName == "GOLD" {
-			unit = "lượng"
+			unit = "chỉ"
 		}
 
 		costBasis := data.Quantity * data.DCAPrice

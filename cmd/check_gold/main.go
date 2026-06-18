@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -30,7 +31,18 @@ func sendTelegramMessage(botToken string, chatID string, message string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("status: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		errMsg := string(body)
+		
+		// Send fallback error message
+		fallbackPayload := map[string]interface{}{
+			"chat_id": chatID,
+			"text":    "⚠️ Lỗi hiển thị báo cáo tự động: " + errMsg,
+		}
+		fallbackData, _ := json.Marshal(fallbackPayload)
+		http.Post(url, "application/json", bytes.NewBuffer(fallbackData))
+		
+		return fmt.Errorf("status: %d, body: %s", resp.StatusCode, errMsg)
 	}
 	return nil
 }
