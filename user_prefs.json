@@ -6,8 +6,8 @@
   "portfolio": {
     "assets": {
       "GOLD": {
-        "quantity": 2,
-        "dca_price": 16500000,
+        "quantity": 3,
+        "dca_price": 16166666.666666666,
         "realized_pnl": 0
       },
       "HPG": {
