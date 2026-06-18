@@ -93,19 +93,59 @@ def build_stock_report_message(stock_data):
     return msg
 
 PREFS_FILE = "user_prefs.json"
+PREFS_CACHE = {}
 
 def load_prefs():
+    global PREFS_CACHE
+    if PREFS_CACHE:
+        return PREFS_CACHE
+
     import os
     import json
+    import base64
+    import requests
+
+    github_token = os.environ.get("GITHUB_TOKEN")
+    owner = os.environ.get("VERCEL_GIT_REPO_OWNER") or "anlt149"
+    repo = os.environ.get("VERCEL_GIT_REPO_SLUG") or "giava"
+
+    # Try fetching from GitHub API first if token is configured
+    if github_token:
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{PREFS_FILE}"
+            headers = {
+                "Authorization": f"Bearer {github_token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "Telegram-Stock-Bot"
+            }
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                content_b64 = resp.json().get("content", "")
+                if content_b64:
+                    content_bytes = base64.b64decode(content_b64)
+                    PREFS_CACHE = json.loads(content_bytes.decode("utf-8"))
+                    print("Successfully loaded prefs from GitHub.")
+                    return PREFS_CACHE
+        except Exception as e:
+            print(f"Error loading prefs from GitHub: {e}")
+
+    # Fallback to local file
     if os.path.exists(PREFS_FILE):
         try:
             with open(PREFS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                PREFS_CACHE = json.load(f)
+                print("Successfully loaded prefs from local file.")
+                return PREFS_CACHE
         except Exception as e:
             print(f"Error reading local prefs: {e}")
+            
     return {}
 
 def save_prefs(prefs):
+    global PREFS_CACHE
+    PREFS_CACHE = prefs
+
     import os
     import json
     import base64
