@@ -32,4 +32,4 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add gold_price_state.json
-          git diff-index --quiet HEAD || (git commit -m "chore: update gold price state" && git push)
+          git diff-index --quiet HEAD || (git commit -m "chore: update gold price state" && git pull --rebase origin main && git push)

@@ -1,5 +1,7 @@
 {
-  "last_updated": "2026-06-17T11:22:25.851830Z",
+  "last_updated": "2026-06-18T14:29:24.294625Z",
   "sjc_buy": 148800000,
-  "sjc_sell": 151300000
+  "sjc_sell": 151300000,
+  "stock_ticker": "FPT",
+  "stock_price": 71600.0
 }
