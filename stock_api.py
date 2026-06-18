@@ -159,3 +159,149 @@ def save_prefs(prefs):
                 print(f"Failed to update user_prefs.json on GitHub: {resp.status_code} - {resp.text}")
         except Exception as e:
             print(f"Error pushing user_prefs.json to GitHub: {e}")
+
+def add_transaction(asset_name: str, price: float, quantity: float, action: str):
+    """
+    Add a buy or sell transaction.
+    action: 'buy' or 'sell'
+    Returns (success: bool, error_message: str)
+    """
+    asset_name = asset_name.strip().upper()
+    if quantity <= 0:
+        return False, "Số lượng phải lớn hơn 0\\!"
+    if price <= 0:
+        return False, "Giá phải lớn hơn 0\\!"
+
+    prefs = load_prefs()
+    portfolio = prefs.get("portfolio", {})
+    assets = portfolio.get("assets", {})
+
+    asset_data = assets.get(asset_name, {
+        "quantity": 0.0,
+        "dca_price": 0.0,
+        "realized_pnl": 0.0
+    })
+
+    old_qty = asset_data.get("quantity", 0.0)
+    old_dca = asset_data.get("dca_price", 0.0)
+    realized_pnl = asset_data.get("realized_pnl", 0.0)
+
+    if action == "buy":
+        new_qty = old_qty + quantity
+        new_dca = ((old_qty * old_dca) + (price * quantity)) / new_qty if new_qty > 0 else 0.0
+        
+        asset_data["quantity"] = new_qty
+        asset_data["dca_price"] = new_dca
+    elif action == "sell":
+        if quantity > old_qty:
+            return False, f"Không đủ số lượng để bán\\! Bạn chỉ có `{escape_markdown(f'{old_qty:g}')}`."
+        new_qty = old_qty - quantity
+        realized_pnl += (price - old_dca) * quantity
+        
+        asset_data["quantity"] = new_qty
+        asset_data["realized_pnl"] = realized_pnl
+        # DCA price remains the same
+    else:
+        return False, "Hành động không hợp lệ\\!"
+
+    assets[asset_name] = asset_data
+    portfolio["assets"] = assets
+    prefs["portfolio"] = portfolio
+    save_prefs(prefs)
+    return True, ""
+
+def clear_portfolio():
+    prefs = load_prefs()
+    prefs["portfolio"] = {"assets": {}}
+    save_prefs(prefs)
+    return True
+
+def get_portfolio_report():
+    prefs = load_prefs()
+    portfolio = prefs.get("portfolio", {})
+    assets = portfolio.get("assets", {})
+
+    if not assets:
+        return "💼 *Danh mục đầu tư của bạn đang trống\\!*\nSử dụng `/buy` để thêm tài sản\\! Ví dụ: `/buy FPT 120000 100`"
+
+    # Filter out assets with 0 quantity but keep their realized PnL in mind
+    active_assets = {k: v for k, v in assets.items() if v.get("quantity", 0.0) > 0}
+    realized_pnl_total = sum(v.get("realized_pnl", 0.0) for v in assets.values())
+
+    if not active_assets and realized_pnl_total == 0.0:
+        return "💼 *Danh mục đầu tư của bạn đang trống\\!*\nSử dụng `/buy` để thêm tài sản\\! Ví dụ: `/buy FPT 120000 100`"
+
+    gold_prices = None
+    total_cost = 0.0
+    total_value = 0.0
+    
+    msg = "💼 *DANH MỤC TÀI SẢN*\n\n"
+    
+    for asset_name, data in sorted(assets.items()):
+        qty = data.get("quantity", 0.0)
+        dca = data.get("dca_price", 0.0)
+        realized = data.get("realized_pnl", 0.0)
+        
+        # If we have realized PnL but no holdings, we just display the realized PnL at the end
+        if qty <= 0:
+            continue
+            
+        current_price = None
+        if asset_name == "GOLD":
+            try:
+                from gold_api import get_vietnam_gold_prices
+                if not gold_prices:
+                    gold_prices = get_vietnam_gold_prices()
+                if "sjc" in gold_prices:
+                    current_price = float(gold_prices["sjc"]["buy"])
+            except Exception as e:
+                print(f"Error getting gold price for portfolio: {e}")
+        else:
+            stock_data = get_stock_price(asset_name)
+            if stock_data:
+                current_price = stock_data["price"]
+
+        unit = "lượng" if asset_name == "GOLD" else "CP"
+        cost_basis = qty * dca
+        total_cost += cost_basis
+        
+        msg += f"⚫ *{escape_markdown(asset_name)}*\n"
+        msg += f"\\- Số lượng: {escape_markdown(f'{qty:g}')} {unit}\n"
+        msg += f"\\- Giá DCA: {escape_markdown(format_currency(dca))} VND\n"
+        
+        if current_price:
+            current_val = qty * current_price
+            total_value += current_val
+            unrealized_pnl = current_val - cost_basis
+            pnl_percent = (unrealized_pnl / cost_basis * 100) if cost_basis else 0.0
+            
+            pnl_sign = "+" if unrealized_pnl > 0 else ""
+            indicator = "🟢" if unrealized_pnl > 0 else ("🔴" if unrealized_pnl < 0 else "⚪")
+            
+            msg += f"\\- Giá hiện tại: {escape_markdown(format_currency(current_price))} VND\n"
+            msg += f"\\- Giá trị hiện tại: {escape_markdown(format_currency(current_val))} VND\n"
+            msg += f"\\- Lợi nhuận: {indicator} {escape_markdown(pnl_sign)}{escape_markdown(format_currency(unrealized_pnl))} VND \\({escape_markdown(pnl_sign)}{escape_markdown(f'{pnl_percent:.2f}')}%\\)\n"
+        else:
+            total_value += cost_basis  # assume no change
+            msg += "⚠️ *Không thể lấy giá hiện tại\\!*\n"
+            msg += f"\\- Giá trị đầu tư: {escape_markdown(format_currency(cost_basis))} VND\n"
+            
+        msg += "\n"
+        
+    msg += "───────────────────\n"
+    msg += "📊 *TỔNG KẾT TÀI SẢN*\n"
+    msg += f"\\- Tổng vốn đầu tư: {escape_markdown(format_currency(total_cost))} VND\n"
+    msg += f"\\- Tổng giá trị hiện tại: {escape_markdown(format_currency(total_value))} VND\n"
+    
+    total_unrealized_pnl = total_value - total_cost
+    total_pnl_percent = (total_unrealized_pnl / total_cost * 100) if total_cost else 0.0
+    total_pnl_sign = "+" if total_unrealized_pnl > 0 else ""
+    total_indicator = "🟢" if total_unrealized_pnl > 0 else ("🔴" if total_unrealized_pnl < 0 else "⚪")
+    
+    msg += f"\\- Lợi nhuận chưa chốt: {total_indicator} {escape_markdown(total_pnl_sign)}{escape_markdown(format_currency(total_unrealized_pnl))} VND \\({escape_markdown(total_pnl_sign)}{escape_markdown(f'{total_pnl_percent:.2f}')}%\\)\n"
+    
+    realized_sign = "+" if realized_pnl_total > 0 else ("-" if realized_pnl_total < 0 else "")
+    realized_indicator = "🟢" if realized_pnl_total > 0 else ("🔴" if realized_pnl_total < 0 else "⚪")
+    msg += f"\\- Lợi nhuận đã chốt: {realized_indicator} {escape_markdown(realized_sign)}{escape_markdown(format_currency(abs(realized_pnl_total)))} VND\n"
+    
+    return msg
