@@ -57,12 +57,12 @@ class handler(BaseHTTPRequestHandler):
                     "ℹ️ *DANH SÁCH CÁC CÂU LỆNH HỖ TRỢ*\n\n"
                     "💵 *Thông tin giá thị trường:*\n"
                     "\\- `/gold` : Xem báo cáo giá vàng SJC và Thế Giới\\.\n"
-                    "\\- `/stock [TICKER]` : Xem giá cổ phiếu VN (ví dụ: `/stock FPT`)\\. Mặc định là cổ phiếu yêu thích\\.\n"
+                    "\\- `/stock [TICKER]` : Xem giá cổ phiếu VN \\(ví dụ: `/stock FPT`\\)\\. Mặc định là cổ phiếu yêu thích\\.\n"
                     "\\- `/set_stock <TICKER>` : Cài đặt cổ phiếu yêu thích\\.\n\n"
-                    "💼 *Quản lý danh mục đầu tư (Portfolio):*\n"
+                    "💼 *Quản lý danh mục đầu tư \\(Portfolio\\):*\n"
                     "\\- `/portfolio` hoặc `/assets` : Xem thống kê tài sản, DCA và Lời/Lỗ\\.\n"
-                    "\\- `/buy <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh mua (ví dụ: `/buy FPT 120000 100` hoặc `/buy gold 79000000 2`)\\.\n"
-                    "\\- `/sell <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh bán (ví dụ: `/sell FPT 125000 50` hoặc `/sell gold 80000000 1`)\\.\n"
+                    "\\- `/buy <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh mua \\(ví dụ: `/buy FPT 120000 100` hoặc `/buy gold 79000000 2`\\)\\.\n"
+                    "\\- `/sell <TICKER/GOLD> <giá> <số lượng>` : Ghi nhận lệnh bán \\(ví dụ: `/sell FPT 125000 50` hoặc `/sell gold 80000000 1`\\)\\.\n"
                     "\\- `/clear_portfolio` : Xoá toàn bộ danh mục tài sản\\.\n"
                 )
                 try:
