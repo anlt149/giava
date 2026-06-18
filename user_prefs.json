@@ -6,8 +6,8 @@
   "portfolio": {
     "assets": {
       "HPG": {
-        "quantity": 400.0,
-        "dca_price": 23925.0,
+        "quantity": 403.0,
+        "dca_price": 23926.67493796526,
         "realized_pnl": 0.0
       }
     }
