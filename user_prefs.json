@@ -1,7 +1,7 @@
 {
   "favorite_stocks": [
-    "MWG",
-    "HPG"
+    "HPG",
+    "MWG"
   ],
   "portfolio": {
     "assets": {
@@ -11,8 +11,8 @@
         "realized_pnl": 0
       },
       "HPG": {
-        "quantity": 603,
-        "dca_price": 23917.82752902156,
+        "quantity": 610,
+        "dca_price": 23911.31147540984,
         "realized_pnl": 0
       }
     }
