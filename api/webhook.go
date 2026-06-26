@@ -38,14 +38,27 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
-	if update.Message != nil && update.Message.Chat != nil && botToken != "" {
-		text := update.Message.Text
-		chatID := update.Message.Chat.ID
+	var text string
+	var chatID int64
+
+	if update.Message != nil && update.Message.Chat != nil {
+		text = update.Message.Text
+		chatID = update.Message.Chat.ID
+	} else if update.CallbackQuery != nil && update.CallbackQuery.Message != nil {
+		text = update.CallbackQuery.Data
+		chatID = update.CallbackQuery.Message.Chat.ID
+		// Optional: Answer the callback query to remove the loading state on the button
+		answerCallbackQuery(botToken, update.CallbackQuery.ID)
+	}
+
+	if chatID != 0 && botToken != "" {
 		fmt.Printf("Received Telegram webhook request. Text: '%s', Chat ID: '%d'\n", text, chatID)
 
 		var msg string
 		if strings.HasPrefix(text, "/help") {
 			msg = "ℹ️ *DANH SÁCH CÁC CÂU LỆNH HỖ TRỢ*\n\n" +
+				"📱 *Tra cứu nhanh:*\n" +
+				"\\- `/check` : Mở menu tra cứu nhanh \\(Vàng, Cổ phiếu, Danh mục\\)\\.\n\n" +
 				"💵 *Thông tin giá thị trường:*\n" +
 				"\\- `/gold` : Xem báo cáo giá vàng SJC và Thế Giới\\.\n" +
 				"\\- `/stock [TICKER]` : Xem giá cổ phiếu VN \\(ví dụ: `/stock FPT`\\)\\. Mặc định là danh sách theo dõi\\.\n" +
@@ -59,6 +72,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				"\\- `/remove_asset <TICKER/GOLD>` : Xoá hoàn toàn tài sản khỏi danh mục\\.\n" +
 				"\\- `/clear_portfolio` : Xoá toàn bộ danh mục tài sản\\.\n"
 			sendTelegramMessage(botToken, chatID, msg)
+		} else if strings.HasPrefix(text, "/check") {
+			sendCheckMenu(botToken, chatID)
 		} else if strings.HasPrefix(text, "/gold") {
 			msg = buildGoldReportMessage()
 			sendTelegramMessage(botToken, chatID, msg)
@@ -197,7 +212,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 			sendTelegramMessage(botToken, chatID, msg)
 		} else {
-			allowedCmds := []string{"/gold", "/set_stock", "/remove_stock", "/stock", "/help", "/buy", "/sell", "/portfolio", "/assets", "/clear_portfolio", "/set_asset", "/remove_asset"}
+			allowedCmds := []string{"/check", "/gold", "/set_stock", "/remove_stock", "/stock", "/help", "/buy", "/sell", "/portfolio", "/assets", "/clear_portfolio", "/set_asset", "/remove_asset"}
 			found := false
 			for _, cmd := range allowedCmds {
 				if strings.HasPrefix(text, cmd) {
@@ -242,6 +257,37 @@ func sendTelegramMessage(botToken string, chatID int64, message string) {
 	} else {
 		fmt.Printf("Telegram POST error: %v\n", err)
 	}
+}
+
+func answerCallbackQuery(botToken, callbackQueryID string) {
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/answerCallbackQuery", botToken)
+	payload := map[string]interface{}{
+		"callback_query_id": callbackQueryID,
+	}
+	data, _ := json.Marshal(payload)
+	http.Post(url, "application/json", bytes.NewBuffer(data))
+}
+
+func sendCheckMenu(botToken string, chatID int64) {
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+	payload := map[string]interface{}{
+		"chat_id":    chatID,
+		"text":       "📊 *Chọn chức năng bạn muốn xem:*",
+		"parse_mode": "MarkdownV2",
+		"reply_markup": map[string]interface{}{
+			"inline_keyboard": [][]map[string]interface{}{
+				{
+					{"text": "🥇 Giá Vàng", "callback_data": "/gold"},
+					{"text": "📈 Cổ Phiếu", "callback_data": "/stock"},
+				},
+				{
+					{"text": "💼 Danh Mục Đầu Tư", "callback_data": "/portfolio"},
+				},
+			},
+		},
+	}
+	data, _ := json.Marshal(payload)
+	http.Post(url, "application/json", bytes.NewBuffer(data))
 }
 
 func buildGoldReportMessage() string {

@@ -16,7 +16,15 @@ type UserPrefs struct {
 }
 
 type TelegramUpdate struct {
+	Message       *TelegramMessage       `json:"message"`
+	CallbackQuery *TelegramCallbackQuery `json:"callback_query"`
+}
+
+type TelegramCallbackQuery struct {
+	ID      string           `json:"id"`
+	From    *TelegramChat    `json:"from"`
 	Message *TelegramMessage `json:"message"`
+	Data    string           `json:"data"`
 }
 
 type TelegramMessage struct {
