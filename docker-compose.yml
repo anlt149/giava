@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  giava-bot:
+    build: .
+    container_name: giava-bot
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'      # Limits to 20% of a single CPU core
+          memory: 128M     # Limits RAM usage to 128 Megabytes
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 * * * *}
+    volumes:
+      # Mount JSON files so data persists across container restarts
+      - ./gold_price_state.json:/app/gold_price_state.json
+      - ./user_prefs.json:/app/user_prefs.json

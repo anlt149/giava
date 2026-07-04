@@ -1,10 +1,10 @@
 {
-  "sjc_buy": 14880000,
-  "sjc_sell": 15130000,
+  "sjc_buy": 14840000,
+  "sjc_sell": 15140000,
   "stock_prices": {
     "FPT": 71600,
-    "HPG": 23650,
-    "MWG": 78700
+    "HPG": 23250,
+    "MWG": 78900
   },
-  "last_updated": "2026-06-18T16:45:46Z"
+  "last_updated": "2026-07-04T11:09:51Z"
 }

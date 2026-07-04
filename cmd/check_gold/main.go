@@ -7,7 +7,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	"github.com/robfig/cron/v3"
 
 	"giava/pkg/finance"
 	"giava/pkg/models"
@@ -47,7 +51,7 @@ func sendTelegramMessage(botToken string, chatID string, message string) error {
 	return nil
 }
 
-func main() {
+func checkPrices() {
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	chatID := os.Getenv("TELEGRAM_CHAT_ID")
 
@@ -95,7 +99,12 @@ func main() {
 			goldMsg = "🔔 *BÁO CÁO GIÁ VÀNG*\n\n"
 			goldMsg += fmt.Sprintf("🇻🇳 *%s*\n", utils.EscapeMarkdown(sjc.Name))
 			
-			buyStr := fmt.Sprintf("\\- Mua vào: %s VND", utils.EscapeMarkdown(utils.FormatCurrency(float64(sjc.Buy))))
+			var buyStr string
+			if oldState.SjcBuy != 0 {
+				buyStr = fmt.Sprintf("\\- Mua vào: %s \\-\\> %s VND", utils.EscapeMarkdown(utils.FormatCurrency(float64(oldState.SjcBuy))), utils.EscapeMarkdown(utils.FormatCurrency(float64(sjc.Buy))))
+			} else {
+				buyStr = fmt.Sprintf("\\- Mua vào: %s VND", utils.EscapeMarkdown(utils.FormatCurrency(float64(sjc.Buy))))
+			}
 			if diffBuy != 0 {
 				sign := ""
 				if diffBuy > 0 {
@@ -105,7 +114,12 @@ func main() {
 			}
 			goldMsg += buyStr + "\n"
 
-			sellStr := fmt.Sprintf("\\- Bán ra: %s VND", utils.EscapeMarkdown(utils.FormatCurrency(float64(sjc.Sell))))
+			var sellStr string
+			if oldState.SjcSell != 0 {
+				sellStr = fmt.Sprintf("\\- Bán ra: %s \\-\\> %s VND", utils.EscapeMarkdown(utils.FormatCurrency(float64(oldState.SjcSell))), utils.EscapeMarkdown(utils.FormatCurrency(float64(sjc.Sell))))
+			} else {
+				sellStr = fmt.Sprintf("\\- Bán ra: %s VND", utils.EscapeMarkdown(utils.FormatCurrency(float64(sjc.Sell))))
+			}
 			if diffSell != 0 {
 				sign := ""
 				if diffSell > 0 {
@@ -188,7 +202,7 @@ func main() {
 				}
 
 				stockMsg += fmt.Sprintf("⚫ *%s*\n", utils.EscapeMarkdown(item.Ticker))
-				stockMsg += fmt.Sprintf("💰 Giá mới: %s VND\n", utils.EscapeMarkdown(priceStr))
+				stockMsg += fmt.Sprintf("💰 Giá: %s \\-\\> %s VND\n", utils.EscapeMarkdown(utils.FormatCurrency(item.OldPrice)), utils.EscapeMarkdown(priceStr))
 				stockMsg += fmt.Sprintf("📊 Biến động: %s %s%s VND \\(%s%s%%\\)\n\n", indicator, utils.EscapeMarkdown(sign), utils.EscapeMarkdown(diffStr), utils.EscapeMarkdown(sign), utils.EscapeMarkdown(fmt.Sprintf("%.2f", diffPercent)))
 			} else {
 				stockMsg += fmt.Sprintf("⚫ *%s*\n", utils.EscapeMarkdown(item.Ticker))
@@ -234,4 +248,35 @@ func main() {
 		os.WriteFile(stateFile, stateData, 0644)
 		fmt.Println("State file updated.")
 	}
+}
+
+func main() {
+	schedule := os.Getenv("CRON_SCHEDULE")
+	if schedule == "" {
+		schedule = "@hourly"
+	}
+
+	c := cron.New()
+	_, err := c.AddFunc(schedule, func() {
+		fmt.Println("Running scheduled checkPrices at", time.Now().Format(time.RFC3339))
+		checkPrices()
+	})
+	if err != nil {
+		fmt.Printf("Error adding cron job: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Starting cron scheduler with schedule: %s\n", schedule)
+	
+	fmt.Println("Running initial checkPrices at startup...")
+	checkPrices()
+
+	c.Start()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
+	
+	fmt.Println("Shutting down cron scheduler...")
+	c.Stop()
 }
