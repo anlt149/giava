@@ -13,6 +13,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 
+	"giava/pkg/bot"
 	"giava/pkg/finance"
 	"giava/pkg/models"
 	"giava/pkg/storage"
@@ -251,6 +252,9 @@ func checkPrices() {
 }
 
 func main() {
+	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	go bot.StartPolling(botToken)
+
 	schedule := os.Getenv("CRON_SCHEDULE")
 	if schedule == "" {
 		schedule = "@hourly"
