@@ -16,6 +16,7 @@ type UserPrefs struct {
 }
 
 type TelegramUpdate struct {
+	UpdateID      int64                  `json:"update_id"`
 	Message       *TelegramMessage       `json:"message"`
 	CallbackQuery *TelegramCallbackQuery `json:"callback_query"`
 }

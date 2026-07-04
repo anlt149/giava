@@ -37,6 +37,14 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ProcessUpdate(update)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+// ProcessUpdate handles a single Telegram update
+func ProcessUpdate(update models.TelegramUpdate) {
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	var text string
 	var chatID int64
@@ -225,9 +233,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }
 
 func sendTelegramMessage(botToken string, chatID int64, message string) {
