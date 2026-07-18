@@ -96,7 +96,21 @@ func checkPrices() {
 			}
 
 			nowStr := time.Now().Format("15:04 02/01/2006")
-			goldMsg = "🔔 *BÁO CÁO GIÁ VÀNG*\n\n"
+			
+			headerStr := "BÁO CÁO GIÁ VÀNG"
+			if diffSell != 0 || diffBuy != 0 {
+				diffAmount := diffSell
+				if diffAmount == 0 {
+					diffAmount = diffBuy
+				}
+				sign := ""
+				if diffAmount > 0 {
+					sign = "+"
+				}
+				headerStr = fmt.Sprintf("VÀNG: %s%s", sign, utils.FormatCurrency(float64(diffAmount)))
+			}
+			
+			goldMsg = fmt.Sprintf("🔔 *%s*\n\n", utils.EscapeMarkdown(headerStr))
 			goldMsg += fmt.Sprintf("🇻🇳 *%s*\n", utils.EscapeMarkdown(sjc.Name))
 			
 			var buyStr string
@@ -182,7 +196,25 @@ func checkPrices() {
 	var stockMsg string
 	if len(stockChangedItems) > 0 {
 		nowStr := time.Now().Format("15:04 02/01/2006")
-		stockMsg = "🔔 *BÁO CÁO BIẾN ĐỘNG CỔ PHIẾU*\n\n"
+		
+		var headerParts []string
+		for _, item := range stockChangedItems {
+			diff := item.Price - item.OldPrice
+			if item.OldPrice > 0 && diff != 0 {
+				sign := ""
+				if diff > 0 {
+					sign = "+"
+				}
+				headerParts = append(headerParts, fmt.Sprintf("%s %s%s", item.Ticker, sign, utils.FormatCurrency(diff)))
+			}
+		}
+		
+		headerStr := "BÁO CÁO CỔ PHIẾU"
+		if len(headerParts) > 0 {
+			headerStr = strings.Join(headerParts, " | ")
+		}
+		
+		stockMsg = fmt.Sprintf("🔔 *%s*\n\n", utils.EscapeMarkdown(headerStr))
 		for _, item := range stockChangedItems {
 			priceStr := utils.FormatCurrency(item.Price)
 			if item.OldPrice > 0 {
