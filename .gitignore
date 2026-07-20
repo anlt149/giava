@@ -1,5 +1,5 @@
 .vercel
 .env
-check_gold
+/check_gold
 gold_price_state.json
 user_prefs.json
