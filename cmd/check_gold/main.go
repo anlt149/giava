@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"giava/api"
 	"github.com/robfig/cron/v3"
 
 	"giava/pkg/finance"
@@ -284,6 +285,12 @@ func checkPrices() {
 }
 
 func main() {
+	if os.Getenv("GITHUB_ACTIONS") == "true" || os.Getenv("RUN_ONCE") == "true" {
+		fmt.Println("Running one-shot checkPrices for GitHub Actions...")
+		checkPrices()
+		return
+	}
+
 	schedule := os.Getenv("CRON_SCHEDULE")
 	if schedule == "" {
 		schedule = "@hourly"
@@ -305,6 +312,8 @@ func main() {
 	checkPrices()
 
 	c.Start()
+	
+	go startPolling()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -312,4 +321,58 @@ func main() {
 	
 	fmt.Println("Shutting down cron scheduler...")
 	c.Stop()
+}
+
+func startPolling() {
+	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if botToken == "" {
+		fmt.Println("No TELEGRAM_BOT_TOKEN for polling. Webhooks will not be processed locally.")
+		return
+	}
+
+	// Delete webhook to ensure getUpdates works
+	deleteUrl := fmt.Sprintf("https://api.telegram.org/bot%s/deleteWebhook", botToken)
+	deleteClient := &http.Client{Timeout: 10 * time.Second}
+	if resp, err := deleteClient.Get(deleteUrl); err != nil {
+		fmt.Printf("Warning: Failed to delete webhook: %v\n", err)
+	} else {
+		resp.Body.Close()
+	}
+
+	offset := 0
+	client := &http.Client{Timeout: 65 * time.Second}
+
+	fmt.Println("Starting Telegram long polling...")
+
+	for {
+		url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?timeout=60&offset=%d", botToken, offset)
+		resp, err := client.Get(url)
+		if err != nil {
+			fmt.Printf("Polling error: %v\n", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		var data struct {
+			Ok     bool `json:"ok"`
+			Result []struct {
+				UpdateID int `json:"update_id"`
+				models.TelegramUpdate
+			} `json:"result"`
+		}
+
+		err = json.NewDecoder(resp.Body).Decode(&data)
+		resp.Body.Close()
+
+		if err != nil {
+			fmt.Printf("Polling decode error: %v\n", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		for _, u := range data.Result {
+			offset = u.UpdateID + 1
+			go api.ProcessUpdate(botToken, u.TelegramUpdate)
+		}
+	}
 }
